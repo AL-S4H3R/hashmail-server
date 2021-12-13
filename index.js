@@ -13,7 +13,8 @@ const cors = require('cors')
 const express = require('express')
 const app = express()
 
- 
+let emailsDb = []
+
 app.listen(8080, () => console.log('Hedera backend started'))
 app.use(express.json())
 app.use(cors())
@@ -35,11 +36,26 @@ app.post('/sendMail', async (req, res) => {
     })
     const topicId = await createTopicId()
     const messageReceipt = await submitMessage(topicId, email_body)
+    let newObj = {
+        topicId,
+        to_address,
+        subject,
+        from_address
+    }
+    emailsDb.push(newObj)
     res.json({
         messageReceipt
     })
 })
 
+app.post('/getMails', async (req, res) => {
+    const { to_address } = req.body
+    const inbox = emailsDb.filter(email => email.to_address === to_address)
+    console.log(inbox)
+    inbox.map(mail => {
+        getAllMessages(mail.topicId)
+    }) 
+})
 
 const initHedera = async () => {
     const accountId = process.env.HEDERA_ACCOUNT_ID
@@ -75,6 +91,14 @@ const submitMessage = async (topicId, message) => {
     return receipt
 }
 
+const getAllMessages = async (topicId) => {
+    const client = await initHedera()
+    const subscriptionHandle = new TopicMessageQuery()
+                        .setTopicId(topicId)
+                        .setStartTime(0)
+                        .subscribe(client, (message) => console.log(Buffer.from(message.contents, 'utf-8').toString))
+}
+
 const main = async () => {
 
     // 2. create new consensus service topic -> private channel/open message
@@ -97,6 +121,7 @@ const main = async () => {
     const newAccountId = getReceipt.accountId
     console.log(`New Account Id: ${newAccountId}`)
 
+    
 }
 
 // main()
@@ -116,13 +141,4 @@ const main = async () => {
 
 // submitMessage('0.0.18697963')
 
-const getAllMessages = async (topicId) => {
-    const client = await initHedera()
-    new TopicMessageQuery()
-        .setTopicId(topicId)
-        .setStartTime(0)
-        .subscribe(
-            client,
-            (message) => console.log(Buffer.from(message.contents, "utf8").toString())
-        );
-}
+
